@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chemistry Lab Inventory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Refined inventory control</p>
+        <h1>Laboratory Management Console</h1>
+      </div>
+      <nav class="tabs" aria-label="Primary">
+        <button class="tab is-active" data-view="dashboard">Dashboard</button>
+        <button class="tab" data-view="inventory">Inventory</button>
+        <button class="tab" data-view="cabinets">Cabinets</button>
+        <button class="tab" data-view="import">Bulk Import</button>
+        <button class="tab" data-view="labels">QR Labels</button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="view is-visible" id="dashboard">
+        <div class="metric-grid" id="metrics"></div>
+
+        <div class="split">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Cabinet Usage Summary</h2>
+                <p>Visual overview of item density and higher-risk materials.</p>
+              </div>
+              <button class="text-button" data-jump="cabinets">Browse cabinets</button>
+            </div>
+            <div class="cabinet-bars" id="cabinetBars"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Active Alerts</h2>
+                <p>Low stock, critical hazards, and expiry checks.</p>
+              </div>
+            </div>
+            <div class="alert-list" id="alerts"></div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Recent Chemicals</h2>
+              <p>Latest additions to the lab inventory.</p>
+            </div>
+          </div>
+          <div class="recent-grid" id="recentItems"></div>
+        </section>
+      </section>
+
+      <section class="view" id="inventory">
+        <div class="page-title">
+          <div>
+            <h2>Inventory</h2>
+            <p>Search, filter, add, edit, and inspect every chemical or equipment item.</p>
+          </div>
+          <button class="primary-button" id="addItemButton">+ Add Item</button>
+        </div>
+
+        <section class="toolbar">
+          <label class="search-field">
+            <span>Search</span>
+            <input id="searchInput" type="search" placeholder="Name, CAS, code, or location" />
+          </label>
+          <label>
+            <span>Category</span>
+            <select id="categoryFilter">
+              <option>All categories</option>
+              <option>Chemical</option>
+              <option>Equipment</option>
+              <option>Material</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            <span>Hazard</span>
+            <select id="hazardFilter">
+              <option>All hazards</option>
+              <option>None</option>
+              <option>Low</option>
+              <option>Moderate</option>
+              <option>High</option>
+              <option>Critical</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="panel table-panel">
+          <div class="inventory-list" id="inventoryList"></div>
+        </section>
+      </section>
+
+      <section class="view" id="itemDetail">
+        <div class="page-title">
+          <div>
+            <h2 id="detailTitle">Item Detail</h2>
+            <p id="detailSubtitle">Review this inventory record and its unique QR code.</p>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-button" id="backToInventoryButton">Back to inventory</button>
+            <button class="primary-button" id="editDetailButton">Edit item</button>
+          </div>
+        </div>
+        <section class="item-detail-grid" id="itemDetailContent"></section>
+      </section>
+
+      <section class="view" id="cabinets">
+        <div class="page-title">
+          <div>
+            <h2>Cabinet and Shelf Browser</h2>
+            <p>Drill down from cabinet type to numbered cabinet to shelf-level listings.</p>
+          </div>
+        </div>
+        <div class="cabinet-layout">
+          <aside class="panel selector-panel">
+            <h3>Cabinet Groups</h3>
+            <div class="segmented" id="cabinetGroups"></div>
+            <h3>Cabinets</h3>
+            <div class="cabinet-list" id="cabinetList"></div>
+          </aside>
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <h2 id="shelfTitle">Shelves inside A-01</h2>
+                <p id="shelfSubtitle">Select a shelf to inspect exact locations.</p>
+              </div>
+            </div>
+            <div class="shelf-grid" id="shelfGrid"></div>
+            <div class="shelf-items" id="shelfItems"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="import">
+        <div class="page-title">
+          <div>
+            <h2>AI Bulk Import</h2>
+            <p>Paste text, upload a file, or include a Google Docs link. Review every mapped row before saving.</p>
+          </div>
+        </div>
+        <section class="panel import-panel">
+          <label>
+            <span>Inventory Notes</span>
+            <textarea
+              id="importText"
+              placeholder="Chemical ID,Chemical Name,Quantity,Concentration,Storage Location,MSDS Summary&#10;CHEM-001,Sodium Hydroxide,2 bottles,0.5 M,Cabinet E Shelf 2,Corrosive base; wear gloves&#10;&#10;Equipment ID,Original PDF item,Equipment Name,Quantity,Size/Type,Category&#10;EQ-001,PDF row 12,Digital Balance,2,0.01 g precision,Equipment"
+            ></textarea>
+          </label>
+          <div class="import-row">
+            <label>
+              <span>Optional Google Docs link</span>
+              <input id="docLink" type="url" placeholder="https://docs.google.com/..." />
+            </label>
+            <label>
+              <span>Upload text or CSV file</span>
+              <input id="fileInput" type="file" accept=".txt,.csv" />
+            </label>
+          </div>
+          <button class="primary-button" id="parseButton">Parse with AI</button>
+        </section>
+        <section class="panel" id="reviewPanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <h2>Review Parsed Rows</h2>
+              <p>Confirm the rows that should be added to inventory.</p>
+            </div>
+            <button class="primary-button" id="saveParsedButton">Save reviewed items</button>
+          </div>
+          <div class="inventory-list compact" id="reviewList"></div>
+        </section>
+      </section>
+
+      <section class="view" id="labels">
+        <div class="page-title">
+          <div>
+            <h2>Printable QR Labels</h2>
+            <p>Print item labels with names, locations, and unique QR codes.</p>
+          </div>
+          <button class="primary-button" id="printLabelsButton">Print labels</button>
+        </div>
+        <section class="label-sheet" id="labelSheet"></section>
+      </section>
+    </main>
+
+    <dialog id="itemDialog">
+      <form method="dialog" id="itemForm">
+        <div class="dialog-head">
+          <h2 id="dialogTitle">Add Item</h2>
+          <button class="icon-button" type="button" id="closeDialogButton" aria-label="Close">x</button>
+        </div>
+        <input type="hidden" id="itemId" />
+        <div class="form-grid">
+          <label>
+            <span>Name</span>
+            <input id="nameField" required />
+          </label>
+          <label>
+            <span>Chemical / Equipment ID</span>
+            <input id="casField" />
+          </label>
+          <label>
+            <span>Category</span>
+            <select id="categoryField">
+              <option>Chemical</option>
+              <option>Equipment</option>
+              <option>Material</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            <span>Hazard</span>
+            <select id="hazardField">
+              <option>None</option>
+              <option>Low</option>
+              <option>Moderate</option>
+              <option>High</option>
+              <option>Critical</option>
+            </select>
+          </label>
+          <label>
+            <span>Quantity</span>
+            <input id="quantityField" type="number" min="0" step="0.1" />
+          </label>
+          <label>
+            <span>Unit</span>
+            <input id="unitField" placeholder="g, mL, bottles" />
+          </label>
+          <label>
+            <span>Size / Type</span>
+            <input id="packageSizeField" placeholder="large, glass flask, model type" />
+          </label>
+          <label>
+            <span>Concentration</span>
+            <input id="concentrationField" placeholder="0.1 M, 70%, 10 mg/mL" />
+          </label>
+          <label>
+            <span>Cabinet</span>
+            <select id="cabinetField"></select>
+          </label>
+          <label>
+            <span>Shelf</span>
+            <select id="shelfField"></select>
+          </label>
+          <label>
+            <span>Expiry</span>
+            <input id="expiryField" type="date" />
+          </label>
+          <label class="wide">
+            <span>Notes</span>
+            <textarea id="notesField" rows="3"></textarea>
+          </label>
+          <label class="wide">
+            <span>MSDS Summary</span>
+            <textarea id="msdsField" rows="3"></textarea>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="button" id="cancelDialogButton">Cancel</button>
+          <button class="primary-button" id="saveItemButton" value="default">Save item</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
