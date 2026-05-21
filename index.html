@@ -102,6 +102,18 @@
           </label>
         </section>
 
+        <section class="bulk-actions" id="bulkActions" aria-label="Bulk inventory actions">
+          <label class="bulk-select">
+            <input id="bulkSelectVisible" type="checkbox" />
+            <span>Select visible items</span>
+          </label>
+          <span id="bulkSelectionCount">0 selected</span>
+          <div class="bulk-buttons">
+            <button class="secondary-button" id="clearSelectionButton" type="button">Clear</button>
+            <button class="danger-button" id="deleteSelectedButton" type="button">Delete selected</button>
+          </div>
+        </section>
+
         <section class="panel table-panel">
           <div class="inventory-list" id="inventoryList"></div>
         </section>

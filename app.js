@@ -1,4 +1,5 @@
 const STORAGE_KEY = "chemLabInventory.v1";
+const PUBLISHED_SITE_URL = "https://h210371-cmyk.github.io/codex3/";
 
 const seedItems = [
   {
@@ -74,11 +75,16 @@ const seedItems = [
 ];
 
 let items = loadItems();
+const sharedUrlItem = sharedItemFromUrl();
+if (sharedUrlItem && !items.some((item) => item.id === sharedUrlItem.id)) {
+  items = [sharedUrlItem, ...items];
+}
 let activeCabinetGroup = "A";
 let activeCabinet = "A-01";
 let activeShelf = "Shelf 1";
 let parsedRows = [];
-let selectedItemId = items[0]?.id || "";
+let selectedItemId = itemIdFromUrl() || items[0]?.id || "";
+let selectedItemIds = new Set();
 
 const shelfCountsByGroup = {
   A: 1,
@@ -152,6 +158,37 @@ function loadItems() {
 
 function saveItems() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items.map(normalizeItemRecord)));
+}
+
+function itemIdFromUrl() {
+  try {
+    return new URLSearchParams(window.location.search).get("item") || "";
+  } catch {
+    return "";
+  }
+}
+
+function sharedItemFromUrl() {
+  try {
+    const encodedRecord = new URLSearchParams(window.location.search).get("record");
+    if (!encodedRecord) return null;
+    return normalizeItemRecord(JSON.parse(encodedRecord));
+  } catch {
+    return null;
+  }
+}
+
+function publicSiteUrl() {
+  const localHosts = new Set(["", "localhost", "127.0.0.1", "::1"]);
+  if (window.location.protocol.startsWith("http") && !localHosts.has(window.location.hostname)) {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    url.pathname = url.pathname.replace(/index\.html$/i, "");
+    return url.toString();
+  }
+
+  return PUBLISHED_SITE_URL;
 }
 
 function showView(viewId) {
@@ -977,20 +1014,35 @@ function focusCabinetForItem(item) {
   activeShelf = item.shelf;
 }
 
-function qrPayload(item) {
-  return JSON.stringify({
+function itemShareRecord(item) {
+  return {
     id: item.id,
     name: item.name,
-    code: item.cas || "",
-    sizeType: item.packageSize || "",
+    cas: item.cas || "",
+    category: item.category || "Chemical",
+    hazard: item.hazard || "Low",
+    quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 1,
+    unit: item.unit || "unit",
+    packageSize: item.packageSize || "",
     concentration: item.concentration || "",
-    location: itemLocation(item),
+    cabinet: item.cabinet || "",
+    shelf: item.shelf || "",
+    expiry: item.expiry || "",
+    notes: item.notes || "",
     msdsSummary: item.msdsSummary || "",
-  });
+    createdAt: item.createdAt || new Date().toISOString().slice(0, 10),
+  };
+}
+
+function itemWebsiteUrl(item) {
+  const url = new URL(publicSiteUrl());
+  url.searchParams.set("item", item.id);
+  url.searchParams.set("record", JSON.stringify(itemShareRecord(item)));
+  return url.toString();
 }
 
 function qrImageUrl(item, size = 220) {
-  const data = encodeURIComponent(qrPayload(item));
+  const data = encodeURIComponent(itemWebsiteUrl(item));
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${data}`;
 }
 
@@ -1101,23 +1153,82 @@ function filteredItems() {
 
 function renderInventory() {
   const list = filteredItems();
+  selectedItemIds = new Set([...selectedItemIds].filter((itemId) => items.some((item) => item.id === itemId)));
+  renderBulkDeleteControls(list);
   document.querySelector("#inventoryList").innerHTML =
     list.length === 0
       ? `<div class="empty">No matching items. Adjust filters or add a new record.</div>`
-      : list.map(itemRowTemplate).join("");
+      : list.map((item) => itemRowTemplate(item, { selectable: true })).join("");
+}
+
+function renderBulkDeleteControls(list = filteredItems()) {
+  const visibleIds = list.map((item) => item.id);
+  const selectedVisibleCount = visibleIds.filter((itemId) => selectedItemIds.has(itemId)).length;
+  const selectedCount = selectedItemIds.size;
+  const selectVisibleField = document.querySelector("#bulkSelectVisible");
+
+  selectVisibleField.checked = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  selectVisibleField.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
+  selectVisibleField.disabled = visibleIds.length === 0;
+  document.querySelector("#bulkSelectionCount").textContent = `${selectedCount} selected`;
+  document.querySelector("#clearSelectionButton").disabled = selectedCount === 0;
+  document.querySelector("#deleteSelectedButton").disabled = selectedCount === 0;
+}
+
+function setVisibleSelection(selected) {
+  filteredItems().forEach((item) => {
+    if (selected) {
+      selectedItemIds.add(item.id);
+    } else {
+      selectedItemIds.delete(item.id);
+    }
+  });
+  renderInventory();
+}
+
+function clearSelectedItems() {
+  selectedItemIds.clear();
+  renderInventory();
+}
+
+function deleteSelectedItems() {
+  const selectedCount = selectedItemIds.size;
+  if (selectedCount === 0) return;
+  const confirmed = window.confirm(`Delete ${selectedCount} selected item${selectedCount === 1 ? "" : "s"}?`);
+  if (!confirmed) return;
+
+  items = items.filter((item) => !selectedItemIds.has(item.id));
+  if (selectedItemIds.has(selectedItemId)) {
+    selectedItemId = items[0]?.id || "";
+  }
+  selectedItemIds.clear();
+  saveItems();
+  renderAll();
 }
 
 function itemRowTemplate(item, options = {}) {
   const settings =
     typeof options === "boolean"
       ? { readonly: options, clickable: !options }
-      : { readonly: false, clickable: true, ...options };
+      : { readonly: false, clickable: true, selectable: false, ...options };
+  const selectionControl =
+    settings.selectable && !settings.readonly
+      ? `<label class="row-select" data-row-select>
+          <input
+            type="checkbox"
+            data-select-item="${item.id}"
+            aria-label="Select ${item.name}"
+            ${selectedItemIds.has(item.id) ? "checked" : ""}
+          />
+        </label>`
+      : "";
 
   return `
     <article
-      class="item-row ${settings.clickable ? "item-clickable" : ""}"
+      class="item-row ${settings.selectable ? "has-selection" : ""} ${settings.clickable ? "item-clickable" : ""}"
       ${settings.clickable ? `data-item="${item.id}" role="button" tabindex="0" aria-label="Open ${item.name} details"` : ""}
     >
+      ${selectionControl}
       <div>
         <h3>${item.name}</h3>
         <p class="card-detail">
@@ -1191,7 +1302,7 @@ function renderItemDetail() {
     </article>
     <aside class="qr-card">
       <h2>Item QR Code</h2>
-      <p class="card-detail">Scan to identify this item and its assigned location.</p>
+      <p class="card-detail">Scan to open this item on the website.</p>
       <img class="qr-image" src="${qrImageUrl(item)}" alt="QR code for ${item.name}" />
       <p><strong>${item.id}</strong></p>
     </aside>
@@ -1600,6 +1711,20 @@ document.querySelector("#editDetailButton").addEventListener("click", () => {
 document.querySelector("#searchInput").addEventListener("input", renderInventory);
 document.querySelector("#categoryFilter").addEventListener("change", renderInventory);
 document.querySelector("#hazardFilter").addEventListener("change", renderInventory);
+document.querySelector("#bulkSelectVisible").addEventListener("change", (event) => setVisibleSelection(event.target.checked));
+document.querySelector("#clearSelectionButton").addEventListener("click", clearSelectedItems);
+document.querySelector("#deleteSelectedButton").addEventListener("click", deleteSelectedItems);
+document.querySelector("#inventoryList").addEventListener("change", (event) => {
+  const itemId = event.target.dataset.selectItem;
+  if (!itemId) return;
+
+  if (event.target.checked) {
+    selectedItemIds.add(itemId);
+  } else {
+    selectedItemIds.delete(itemId);
+  }
+  renderInventory();
+});
 document.querySelector("#parseButton").addEventListener("click", () => {
   parsedRows = parseImportText();
   renderReview();
@@ -1643,6 +1768,7 @@ document.querySelector("#fileInput").addEventListener("change", async (event) =>
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-row-select]")) return;
   const editId = event.target.dataset.edit;
   const deleteId = event.target.dataset.delete;
   const itemId = event.target.closest("[data-item]")?.dataset.item;
@@ -1656,6 +1782,7 @@ document.addEventListener("click", (event) => {
   }
   if (deleteId) {
     items = items.filter((item) => item.id !== deleteId);
+    selectedItemIds.delete(deleteId);
     if (selectedItemId === deleteId) selectedItemId = items[0]?.id || "";
     saveItems();
     renderAll();
@@ -1700,3 +1827,6 @@ itemForm.addEventListener("submit", (event) => {
 });
 
 renderAll();
+if (itemIdFromUrl()) {
+  showView("itemDetail");
+}

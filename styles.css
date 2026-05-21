@@ -76,6 +76,7 @@ h1 {
 .tab,
 .primary-button,
 .secondary-button,
+.danger-button,
 .text-button,
 .icon-button {
   border: 0;
@@ -101,6 +102,18 @@ h1 {
   color: white;
   background: var(--blue);
   box-shadow: 0 12px 26px rgba(18, 107, 134, 0.22);
+}
+
+.danger-button {
+  color: white;
+  background: var(--red);
+  box-shadow: 0 12px 26px rgba(194, 65, 84, 0.18);
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .text-button {
@@ -304,6 +317,40 @@ main {
   margin-bottom: 16px;
 }
 
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.bulk-select {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+}
+
+.bulk-select input,
+.row-select input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+}
+
+.bulk-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -341,6 +388,16 @@ textarea {
   grid-template-columns: 1.2fr 0.8fr 0.7fr auto;
   align-items: center;
   gap: 14px;
+}
+
+.item-row.has-selection {
+  grid-template-columns: auto 1.2fr 0.8fr 0.7fr auto;
+}
+
+.row-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .item-clickable {
@@ -668,6 +725,7 @@ dialog::backdrop {
   .split,
   .recent-grid,
   .toolbar,
+  .bulk-actions,
   .cabinet-layout,
   .import-row,
   .item-detail-grid,
@@ -675,8 +733,21 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 
+  .bulk-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .item-row {
     grid-template-columns: 1fr;
+  }
+
+  .item-row.has-selection {
+    grid-template-columns: 1fr;
+  }
+
+  .row-select {
+    justify-content: flex-start;
   }
 
   .quantity-unit {
