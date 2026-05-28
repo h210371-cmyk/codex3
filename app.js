@@ -1,5 +1,9 @@
 const STORAGE_KEY = "chemLabInventory.v1";
 const PUBLISHED_SITE_URL = "https://h210371-cmyk.github.io/codex3/";
+const SUPABASE_URL = "https://hpsgmodfevqzzscprylt.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_AjmOFh9TqrazMokNKlLl5Q_3V7Byzb-";
+const SUPABASE_TABLE = "inventory_items";
+const hadLocalStoredItems = Boolean(localStorage.getItem(STORAGE_KEY));
 
 const seedItems = [
   {
@@ -158,6 +162,102 @@ function loadItems() {
 
 function saveItems() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items.map(normalizeItemRecord)));
+}
+
+function supabaseHeaders(extraHeaders = {}) {
+  return {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+    "Content-Type": "application/json",
+    ...extraHeaders,
+  };
+}
+
+async function supabaseRequest(path, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: supabaseHeaders(options.headers),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Supabase request failed: ${response.status}`);
+  }
+
+  if (response.status === 204) return null;
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function fetchSupabaseItems() {
+  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,data,updated_at&order=updated_at.desc`);
+  return Array.isArray(rows) ? rows.map((row, index) => normalizeItemRecord(row.data || { id: row.id }, index)) : [];
+}
+
+async function upsertSupabaseItems(itemsToUpsert) {
+  const rows = itemsToUpsert.map((item) => {
+    const normalized = normalizeItemRecord(item);
+    return {
+      id: normalized.id,
+      data: normalized,
+      updated_at: new Date().toISOString(),
+    };
+  });
+
+  if (rows.length === 0) return;
+
+  await supabaseRequest(`${SUPABASE_TABLE}?on_conflict=id`, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify(rows),
+  });
+}
+
+async function deleteSupabaseItems(itemIds) {
+  await Promise.all(
+    itemIds.map((itemId) =>
+      supabaseRequest(`${SUPABASE_TABLE}?id=eq.${encodeURIComponent(itemId)}`, {
+        method: "DELETE",
+      }),
+    ),
+  );
+}
+
+function persistInventory({ upsert = [], deleteIds = [] } = {}) {
+  saveItems();
+  if (upsert.length > 0) {
+    upsertSupabaseItems(upsert).catch((error) => console.warn("Supabase save failed:", error));
+  }
+  if (deleteIds.length > 0) {
+    deleteSupabaseItems(deleteIds).catch((error) => console.warn("Supabase delete failed:", error));
+  }
+}
+
+async function initializeSharedInventory() {
+  try {
+    const remoteItems = await fetchSupabaseItems();
+    const urlItem = sharedItemFromUrl();
+
+    if (remoteItems.length > 0) {
+      items = remoteItems;
+      if (urlItem && !items.some((item) => item.id === urlItem.id)) {
+        items = [urlItem, ...items];
+        await upsertSupabaseItems([urlItem]);
+      }
+    } else if (hadLocalStoredItems && items.length > 0) {
+      await upsertSupabaseItems(items);
+    } else if (urlItem) {
+      items = [urlItem];
+      await upsertSupabaseItems([urlItem]);
+    }
+
+    selectedItemId = itemIdFromUrl() || selectedItemId || items[0]?.id || "";
+    saveItems();
+    renderAll();
+    if (itemIdFromUrl()) showView("itemDetail");
+  } catch (error) {
+    console.warn("Shared Supabase inventory is not ready yet. Using local browser storage.", error);
+  }
 }
 
 function itemIdFromUrl() {
@@ -1197,12 +1297,13 @@ function deleteSelectedItems() {
   const confirmed = window.confirm(`Delete ${selectedCount} selected item${selectedCount === 1 ? "" : "s"}?`);
   if (!confirmed) return;
 
+  const deleteIds = [...selectedItemIds];
   items = items.filter((item) => !selectedItemIds.has(item.id));
-  if (selectedItemIds.has(selectedItemId)) {
+  if (deleteIds.includes(selectedItemId)) {
     selectedItemId = items[0]?.id || "";
   }
   selectedItemIds.clear();
-  saveItems();
+  persistInventory({ deleteIds });
   renderAll();
 }
 
@@ -1754,7 +1855,7 @@ document.querySelector("#saveParsedButton").addEventListener("click", () => {
   items = [...reviewedRows, ...items];
   if (reviewedRows[0]) focusCabinetForItem(reviewedRows[0]);
   parsedRows = [];
-  saveItems();
+  persistInventory({ upsert: reviewedRows });
   renderAll();
   showView("cabinets");
 });
@@ -1784,7 +1885,7 @@ document.addEventListener("click", (event) => {
     items = items.filter((item) => item.id !== deleteId);
     selectedItemIds.delete(deleteId);
     if (selectedItemId === deleteId) selectedItemId = items[0]?.id || "";
-    saveItems();
+    persistInventory({ deleteIds: [deleteId] });
     renderAll();
     return;
   }
@@ -1821,7 +1922,7 @@ itemForm.addEventListener("submit", (event) => {
   items = items.some((item) => item.id === saved.id)
     ? items.map((item) => (item.id === saved.id ? saved : item))
     : [saved, ...items];
-  saveItems();
+  persistInventory({ upsert: [saved] });
   itemDialog.close();
   renderAll();
 });
@@ -1830,3 +1931,4 @@ renderAll();
 if (itemIdFromUrl()) {
   showView("itemDetail");
 }
+initializeSharedInventory();

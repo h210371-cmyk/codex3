@@ -32,3 +32,7 @@ The importer also accepts the misspelled headers `Concertration` and `Original P
 ## Publish With GitHub Pages
 
 This is a static site. Publish the repository with GitHub Pages using the `main` branch and root folder.
+
+## Shared Inventory Database
+
+This site uses Supabase for shared inventory across devices. Run `supabase-setup.sql` once in the Supabase SQL Editor to create the `inventory_items` table and public policies.
