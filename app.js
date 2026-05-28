@@ -223,6 +223,20 @@ async function deleteSupabaseItems(itemIds) {
   );
 }
 
+function mergeInventoryItems(...itemGroups) {
+  const merged = new Map();
+
+  itemGroups.flat().filter(Boolean).forEach((item, index) => {
+    const normalized = normalizeItemRecord(item, index);
+    const existing = merged.get(normalized.id);
+    if (!existing || String(normalized.createdAt || "") >= String(existing.createdAt || "")) {
+      merged.set(normalized.id, normalized);
+    }
+  });
+
+  return [...merged.values()].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
 function persistInventory({ upsert = [], deleteIds = [] } = {}) {
   saveItems();
   if (upsert.length > 0) {
@@ -237,18 +251,25 @@ async function initializeSharedInventory() {
   try {
     const remoteItems = await fetchSupabaseItems();
     const urlItem = sharedItemFromUrl();
+    const localItems = hadLocalStoredItems ? items : [];
+    const itemsToUpload = [];
 
-    if (remoteItems.length > 0) {
-      items = remoteItems;
-      if (urlItem && !items.some((item) => item.id === urlItem.id)) {
-        items = [urlItem, ...items];
-        await upsertSupabaseItems([urlItem]);
-      }
-    } else if (hadLocalStoredItems && items.length > 0) {
-      await upsertSupabaseItems(items);
-    } else if (urlItem) {
-      items = [urlItem];
-      await upsertSupabaseItems([urlItem]);
+    items = mergeInventoryItems(remoteItems, localItems, urlItem ? [urlItem] : []);
+
+    const remoteIds = new Set(remoteItems.map((item) => item.id));
+    localItems.forEach((item) => {
+      if (!remoteIds.has(item.id)) itemsToUpload.push(item);
+    });
+    if (urlItem && !remoteIds.has(urlItem.id)) {
+      itemsToUpload.push(urlItem);
+    }
+
+    if (remoteItems.length === 0 && !hadLocalStoredItems && !urlItem) {
+      items = seedItems.map(normalizeItemRecord);
+    }
+
+    if (itemsToUpload.length > 0) {
+      await upsertSupabaseItems(itemsToUpload);
     }
 
     selectedItemId = itemIdFromUrl() || selectedItemId || items[0]?.id || "";
